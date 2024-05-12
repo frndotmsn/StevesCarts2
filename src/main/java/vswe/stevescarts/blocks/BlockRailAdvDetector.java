@@ -21,6 +21,7 @@ import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.material.Material;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import vswe.stevescarts.StevesCarts;
 import vswe.stevescarts.api.modules.data.ModuleData;
 import vswe.stevescarts.blocks.tileentities.TileEntityActivator;
@@ -168,6 +169,49 @@ public class BlockRailAdvDetector extends BaseRailBlock
         if (state.getValue(POWERED)) {
             cart.releaseCart();
         }
+    }
+
+    @Override
+    public boolean canConnectRedstone(BlockState state, BlockGetter world, BlockPos pos, @Nullable Direction direction) {
+        if (direction == null) {
+            return false;
+        }
+
+        // Heavily inspired by
+        // https://github.com/TechReborn/StevesCarts/blob/1.12/src/main/java/vswe/stevescarts/blocks/BlockRailAdvDetector.java
+        // However, that's Fabric, this is Forge
+
+        for (Direction directionToCheck : Direction.Plane.HORIZONTAL) {
+            BlockPos offset = pos.relative(directionToCheck);
+            Block block = world.getBlockState(offset).getBlock();
+            // check if another block(s) is responsible for the release
+            if (block == ModBlocks.CARGO_MANAGER.get() || block == ModBlocks.LIQUID_MANAGER.get() || block == ModBlocks.MODULE_TOGGLER.get()) {
+                // sry, but it's already controlled by something else
+                return false;
+            }
+
+            // dunno what this is about, copied from the techreborn code with Forge changes
+            // almost exactly what's in lines 128-162, this probably can be made more DRY
+            if (block instanceof BlockUpgrade) {
+                BlockEntity tileentity = world.getBlockEntity(offset);
+                TileEntityUpgrade upgrade = (TileEntityUpgrade) tileentity;
+                if (upgrade != null && upgrade.getUpgrade() != null)
+                {
+                    for (TileEntityUpgrade tile : upgrade.getMaster().getUpgradeTiles()) {
+                        if (tile.getUpgrade() != null) {
+                            for (BaseEffect effect2 : tile.getUpgrade().getEffects()) {
+                                if (effect2 instanceof Disassemble) {
+
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return true;
     }
 
     @Override
