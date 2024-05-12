@@ -9,6 +9,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.BaseRailBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.RedStoneWireBlock;
@@ -181,9 +182,21 @@ public class BlockRailAdvDetector extends BaseRailBlock
         // https://github.com/TechReborn/StevesCarts/blob/1.12/src/main/java/vswe/stevescarts/blocks/BlockRailAdvDetector.java
         // However, that's Fabric, this is Forge
 
+
+        /**
+         * alright so this works ... sometimes
+         * it causes a huge amount of warnings but that's ok, at least it doesn't crash
+         * do we REALLY need UPDATE_ALL?
+         * {@link net.minecraftforge.common.extensions.IForgeBlock.canConnectRedstone}
+         */
+        if (world instanceof LevelAccessor accessor) {
+            state.updateNeighbourShapes(accessor, pos, UPDATE_ALL);
+        }
+
         for (Direction directionToCheck : Direction.Plane.HORIZONTAL) {
             BlockPos offset = pos.relative(directionToCheck);
-            Block block = world.getBlockState(offset).getBlock();
+            BlockState blockState = world.getBlockState(offset);
+            Block block = blockState.getBlock();
             // check if another block(s) is responsible for the release
             if (block == ModBlocks.CARGO_MANAGER.get() || block == ModBlocks.LIQUID_MANAGER.get() || block == ModBlocks.MODULE_TOGGLER.get()) {
                 // sry, but it's already controlled by something else
@@ -195,13 +208,11 @@ public class BlockRailAdvDetector extends BaseRailBlock
             if (block instanceof BlockUpgrade) {
                 BlockEntity tileentity = world.getBlockEntity(offset);
                 TileEntityUpgrade upgrade = (TileEntityUpgrade) tileentity;
-                if (upgrade != null && upgrade.getUpgrade() != null)
-                {
+                if (upgrade != null && upgrade.getUpgrade() != null) {
                     for (TileEntityUpgrade tile : upgrade.getMaster().getUpgradeTiles()) {
                         if (tile.getUpgrade() != null) {
                             for (BaseEffect effect2 : tile.getUpgrade().getEffects()) {
                                 if (effect2 instanceof Disassemble) {
-
                                     return false;
                                 }
                             }
