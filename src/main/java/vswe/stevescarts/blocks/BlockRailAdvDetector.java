@@ -1,23 +1,27 @@
 package vswe.stevescarts.blocks;
 
+import dev.architectury.platform.Mod;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.vehicle.AbstractMinecart;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseRailBlock;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.RedStoneWireBlock;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
-import net.minecraft.world.level.block.state.properties.BlockStateProperties;
-import net.minecraft.world.level.block.state.properties.EnumProperty;
-import net.minecraft.world.level.block.state.properties.Property;
-import net.minecraft.world.level.block.state.properties.RailShape;
+import net.minecraft.world.level.block.state.properties.*;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.material.Material;
 import org.jetbrains.annotations.NotNull;
+import vswe.stevescarts.StevesCarts;
 import vswe.stevescarts.api.modules.data.ModuleData;
 import vswe.stevescarts.blocks.tileentities.TileEntityActivator;
 import vswe.stevescarts.blocks.tileentities.TileEntityManager;
@@ -33,6 +37,7 @@ import javax.annotation.Nonnull;
 public class BlockRailAdvDetector extends BaseRailBlock
 {
     public static final EnumProperty<RailShape> SHAPE = BlockStateProperties.RAIL_SHAPE_STRAIGHT;
+    public static final BooleanProperty POWERED = BlockStateProperties.POWERED;
 
     public BlockRailAdvDetector()
     {
@@ -42,13 +47,18 @@ public class BlockRailAdvDetector extends BaseRailBlock
     private BlockRailAdvDetector(Properties builder)
     {
         super(true, builder);
-        this.registerDefaultState(this.stateDefinition.any().setValue(SHAPE, RailShape.NORTH_SOUTH).setValue(WATERLOGGED, Boolean.FALSE));
+        this.registerDefaultState(this.stateDefinition.any().setValue(SHAPE, RailShape.NORTH_SOUTH).setValue(WATERLOGGED, Boolean.FALSE).setValue(POWERED, Boolean.FALSE));
+    }
+
+    public BlockState getStateForPlacement(BlockPlaceContext pContext) {
+        BlockState blockstate = super.getStateForPlacement(pContext);
+        return blockstate.setValue(POWERED, Boolean.valueOf(pContext.getLevel().hasNeighborSignal(pContext.getClickedPos())));
     }
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder)
     {
-        builder.add(SHAPE, WATERLOGGED);
+        builder.add(SHAPE, WATERLOGGED, POWERED);
     }
 
     @Override
@@ -57,6 +67,8 @@ public class BlockRailAdvDetector extends BaseRailBlock
         return SHAPE;
     }
 
+    public @NotNull BooleanProperty getPoweredProperty() { return POWERED; }
+
     @Override
     public boolean canMakeSlopes(BlockState state, BlockGetter world, BlockPos pos)
     {
@@ -64,67 +76,46 @@ public class BlockRailAdvDetector extends BaseRailBlock
     }
 
     @Override
-    public void onMinecartPass(BlockState state, Level world, BlockPos pos, AbstractMinecart entityMinecart)
-    {
-        if (world.isClientSide || !(entityMinecart instanceof EntityMinecartModular cart))
-        {
+    public void onMinecartPass(BlockState state, Level world, BlockPos pos, AbstractMinecart entityMinecart) {
+        if (world.isClientSide || !(entityMinecart instanceof EntityMinecartModular cart)) {
             return;
         }
-        if (!isCartReadyForAction(cart, pos))
-        {
+        if (!isCartReadyForAction(cart, pos)) {
             return;
         }
         int side = 0;
-        for (int i = -1; i <= 1; ++i)
-        {
-            for (int j = -1; j <= 1; ++j)
-            {
-                if (Math.abs(i) != Math.abs(j))
-                {
+        for (int i = -1; i <= 1; ++i) {
+            for (int j = -1; j <= 1; ++j) {
+                if (Math.abs(i) != Math.abs(j)) {
                     BlockPos offset = pos.offset(i, 0, j);
                     Block block = world.getBlockState(offset).getBlock();
-                    if (block == ModBlocks.CARGO_MANAGER.get() || block == ModBlocks.LIQUID_MANAGER.get())
-                    {
+                    if (block == ModBlocks.CARGO_MANAGER.get() || block == ModBlocks.LIQUID_MANAGER.get()) {
                         BlockEntity tileentity = world.getBlockEntity(offset);
-                        if (tileentity instanceof TileEntityManager manager)
-                        {
-                            if (manager.getCart() == null)
-                            {
+                        if (tileentity instanceof TileEntityManager manager) {
+                            if (manager.getCart() == null) {
                                 manager.setCart(cart);
                                 manager.setSide(side);
                             }
                         }
                         return;
                     }
-                    if (block == ModBlocks.MODULE_TOGGLER.get())
-                    {
+                    if (block == ModBlocks.MODULE_TOGGLER.get()) {
                         BlockEntity tileentity = world.getBlockEntity(offset);
-                        if (tileentity instanceof TileEntityActivator activator)
-                        {
+                        if (tileentity instanceof TileEntityActivator activator) {
                             boolean isOrange = false;
-                            if (cart.temppushX == 0.0 == (cart.temppushZ == 0.0))
-                            {
+                            if (cart.temppushX == 0.0 == (cart.temppushZ == 0.0)) {
                                 continue;
                             }
-                            if (i == 0)
-                            {
-                                if (j == -1)
-                                {
+                            if (i == 0) {
+                                if (j == -1) {
                                     isOrange = (cart.temppushX < 0.0);
-                                }
-                                else
-                                {
+                                } else {
                                     isOrange = (cart.temppushX > 0.0);
                                 }
-                            }
-                            else if (j == 0)
-                            {
-                                if (i == -1)
-                                {
+                            } else if (j == 0) {
+                                if (i == -1) {
                                     isOrange = (cart.temppushZ > 0.0);
-                                }
-                                else
-                                {
+                                } else {
                                     isOrange = (cart.temppushZ < 0.0);
                                 }
                             }
@@ -173,6 +164,26 @@ public class BlockRailAdvDetector extends BaseRailBlock
                     ++side;
                 }
             }
+        }
+        if (state.getValue(POWERED)) {
+            cart.releaseCart();
+        }
+    }
+
+    @Override
+    public void neighborChanged(BlockState pState, Level pLevel, BlockPos pPos, Block pBlock, BlockPos pFromPos, boolean pIsMoving)
+    {
+
+        if (pLevel.isClientSide)
+        {
+            return;
+        }
+
+        boolean prev = pState.getValue(POWERED);
+        boolean next = pLevel.hasNeighborSignal(pPos);
+        if (prev != next)
+        {
+            pLevel.setBlock(pPos, pState.cycle(POWERED), 2);
         }
     }
     private boolean isCartReadyForAction(EntityMinecartModular cart, BlockPos pos)
